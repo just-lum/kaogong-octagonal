@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="考工录">
+  <rect width="192" height="192" fill="#efe9dc" />
+  <!-- 八边形：取八面剑身的断面 -->
+  <path d="M96 26 L152 60 L152 132 L96 166 L40 132 L40 60 Z"
+        fill="none" stroke="#1c1a17" stroke-width="7" stroke-linejoin="round" />
+  <!-- 中脊一线的朱砂：剑的意象 -->
+  <path d="M96 44 L96 148" stroke="#a32c23" stroke-width="7" stroke-linecap="round" />
+</svg>

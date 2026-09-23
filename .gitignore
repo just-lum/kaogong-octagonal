@@ -1,0 +1,33 @@
+node_modules/
+dist/
+release/
+.tools/
+*.log
+
+# Blender 中间产物
+art/*.blend1
+art/*.blend2
+
+# 本地对照与校准产物
+reference/local/
+verification/local/
+
+# ---------------------------------------------------------------- 以下为开发过程产物，本地保留、不进仓库
+
+# 渲染检查图与验证截图（体积大，且属于过程产物）
+art/archive/
+verification/*.png
+
+# 第三方参考图（版权不宜公开分发）
+art/reference/
+
+# 中间版本的建模源：只保留最终版 v023 与独立鞘工程
+art/jian-v0[01]*.blend
+art/jian-v02[0-2].blend
+art/sheath-v0[01]*.blend
+art/sheath-v02[0-2].blend
+art/sheath-diag.blend
+
+# 字形提取的中间产物（可由 art/extract_glyph.py 重新生成）
+art/glyph-blocks.json
+art/glyph-blocks.ts.txt

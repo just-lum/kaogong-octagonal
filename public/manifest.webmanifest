@@ -1,0 +1,20 @@
+{
+  "name": "考工录 · 八面",
+  "short_name": "考工录",
+  "description": "一柄八面汉剑的器物档案：可拭纹、可拆解、可检索的三维阅览。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#efe9dc",
+  "theme_color": "#efe9dc",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
