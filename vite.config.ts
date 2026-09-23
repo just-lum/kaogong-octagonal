@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 
 // Blender 反复导出会覆盖同名 GLB。按内容哈希生成版本化文件名，
@@ -18,7 +18,9 @@ const models = modelNames
   });
 
 export default defineConfig(() => ({
-  base: "/",
+  // 本地与自托管走根路径；GitHub Pages 这类子路径部署由构建时传入
+  // （npx vite build --base=/<repo>/ 或设 VITE_BASE）
+  base: process.env.VITE_BASE ?? "/",
   define: {
     __MODELS__: JSON.stringify(
       Object.fromEntries(models.map((model) => [model.key, model.fileName])),
@@ -54,6 +56,14 @@ export default defineConfig(() => ({
                 fileName: model.fileName,
                 source: model.source,
               });
+          },
+          closeBundle() {
+            // public/assets 下的原件会被 Vite 原样复制进产物，与上面 emit 的哈希版重复。
+            // 删掉未哈希的那份，避免同一模型在 dist 里存两遍。
+            for (const model of models) {
+              const original = `dist/${model.key}`;
+              if (existsSync(original)) rmSync(original);
+            }
           },
         },
       ]

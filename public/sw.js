@@ -6,8 +6,12 @@
 
 const CACHE = "kaogong-v1";
 
+// 部署可能落在子路径下（GitHub Pages 的项目站点就是 /<repo>/），
+// 由 worker 自身的位置推导基准，避免写死根路径。
+const BASE = self.location.pathname.replace(/sw\.js$/, "");
+
 /** 固定路径的外壳资源；带内容哈希的构建产物在首次取用时自然进缓存 */
-const SHELL = ["/", "/index.html", "/icon.svg", "/manifest.webmanifest"];
+const SHELL = [`${BASE}`, `${BASE}index.html`, `${BASE}icon.svg`, `${BASE}manifest.webmanifest`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -60,7 +64,9 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() =>
-        caches.match(request).then((hit) => hit ?? caches.match("/").then((root) => root ?? Response.error())),
+        caches
+          .match(request)
+          .then((hit) => hit ?? caches.match(BASE).then((root) => root ?? Response.error())),
       ),
   );
 });

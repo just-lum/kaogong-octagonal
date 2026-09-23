@@ -939,7 +939,8 @@ canvas.addEventListener("touchend", () => {
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     void navigator.serviceWorker
-      .register("/sw.js")
+      // 用 BASE_URL 而非写死的 /sw.js：部署到子路径时 scope 才能落在同一层
+      .register(`${import.meta.env.BASE_URL}sw.js`)
       .then((registration) => {
         registration.addEventListener("updatefound", () => {
           const installing = registration.installing;
