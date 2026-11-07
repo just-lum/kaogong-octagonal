@@ -1,14 +1,12 @@
-import {
-  BOOT,
-  GLYPH_BLOCKS,
-  phaseProgress,
-  strokeState,
-  easeInOut,
-  easeOut,
-} from "./boot-tracks";
+import { GLYPH_BLOCKS } from "./boot-glyph";
+import { BOOT, phaseProgress, strokeState } from "./boot-timing";
+import { easeInOut, easeInQuad, easeOut } from "./boot-ease";
 
 /** 可见长度低于该值（viewBox 坐标）时笔画开始淡出——避免圆头把收尾渲染成一个点 */
 const FADE_TAIL = 24;
+
+/** 跳过时的淡出时长（毫秒）。与自然收尾走同一套逐帧写入，不用 CSS 过渡 */
+const SKIP_FADE_MS = 280;
 
 /**
  * 开场：空白宣纸 → 墨滴坠落 → 墨渍洇开 → 墨迹书写「剑」字（逐笔按书写方向写出）
@@ -29,6 +27,8 @@ export class BootSequence {
   private sealBloom?: SVGCircleElement;
   private removed = false;
   private skipTimer = 0;
+  /** 跳过发生的时刻（performance.now()），-1 表示未跳过 */
+  private skipStartedAt = -1;
 
   constructor(host: HTMLElement) {
     this.root = document.createElement("section");
@@ -130,7 +130,8 @@ export class BootSequence {
     // 墨滴坠落
     const drop = phaseProgress(t, BOOT.inkDrop);
     if (this.inkGroup) {
-      const eased = easeOut(drop);
+      // 重力是加速不是减速：旧版用 easeOut，墨滴是"被拽下来"而非"落下来"
+      const eased = easeInQuad(drop);
       this.inkGroup.setAttribute("opacity", drop > 0 ? "1" : "0");
       this.inkGroup.setAttribute(
         "transform",
@@ -145,24 +146,29 @@ export class BootSequence {
       this.inkCircle.setAttribute("r", radius.toFixed(2));
       this.inkCircle.setAttribute("cy", String(300 + easeOut(spread) * 210));
     }
+    // 收干：字写完（STROKE_PLAY_END ≈ 2.92 s）时墨渍必须已经彻底消失。
+    // 上一版 settle 上限只到 0.78，透明度停在 0.062 且 stdDeviation 已收窄到 1.4，
+    // 结果字全部收势走完之后，画面正中留下一个边界清晰的浅灰圆盘（截图 f5 可见）。
+    // 现在两件事同时发生：透明度线性归零，模糊半径反向放大把残余雾化掉——
+    // 只降透明度不放大模糊，边缘仍会被读成一个"圆"。
+    const settle = Math.min(1, Math.max(0, (t - 2.0) / 1.0));
     if (this.inkBlur) {
-      this.inkBlur.setAttribute("stdDeviation", (16 * (1 - spread) + 1.4).toFixed(2));
+      const base = 16 * (1 - spread) + 1.4;
+      this.inkBlur.setAttribute("stdDeviation", (base * (1 + settle * 9)).toFixed(2));
     }
     if (this.inkGroup) {
-      // 字写出后墨渍继续淡下去：它只是"纸背透过来"的痕迹，
-      // 留得太重会在字形旁边读成一个独立的墨点
-      const settle = Math.min(1, Math.max(0, (t - 2.6) / 1.4));
       this.inkGroup.setAttribute(
         "opacity",
-        String(drop > 0 ? (1 - spread * 0.72) * (1 - settle * 0.78) : 0),
+        String(drop > 0 ? (1 - spread * 0.72) * (1 - settle) : 0),
       );
     }
 
-    // 九笔共用同一时序：一起出现、一起消失
-    const state = strokeState(t);
+    // 逐笔各自有时序：按笔顺错开起笔，长短笔时长不同（见 boot-timing 的 STROKE_PLAN）
+    // leads / bodies 的压入顺序与 GLYPH_BLOCKS 一致，索引即笔画索引，无需重排。
 
     // 来路：沿路径扫出，末段淡掉以免圆头凝成一个点
-    this.leads.forEach((item) => {
+    this.leads.forEach((item, i) => {
+      const state = strokeState(t, i);
       const visible = item.length * state.lead;
       item.el.style.strokeDashoffset = String(item.length - visible);
       const tail = Math.min(1, visible / FADE_TAIL);
@@ -170,11 +176,12 @@ export class BootSequence {
     });
 
     // 笔形：两个 stop 同步右移，白色段从起笔处铺开；退到起笔处时整笔淡掉
-    this.bodies.forEach(({ el, a, b }) => {
+    this.bodies.forEach(({ el, a, b }, i) => {
+      const state = strokeState(t, i);
       const off = state.body.toFixed(4);
       a.setAttribute("offset", off);
       b.setAttribute("offset", off);
-      el.setAttribute("opacity", Math.min(1, state.body / 0.08).toFixed(3));
+      el.setAttribute("opacity", Math.min(1, state.body / 0.06).toFixed(3));
     });
 
     // 朱砂印落下
@@ -195,8 +202,8 @@ export class BootSequence {
       this.sealBloom.setAttribute("opacity", (0.3 * Math.sin(bloom * Math.PI)).toFixed(3));
     }
 
-    // 整层淡出
-    const fade = phaseProgress(t, BOOT.fadeOut);
+    // 整层淡出：自然收尾与跳过都走这里，取两者中进度更靠后的那个
+    const fade = Math.max(phaseProgress(t, BOOT.fadeOut), this.skipFade());
     this.root.style.opacity = String(1 - fade);
 
     if (t >= BOOT.total) {
@@ -206,11 +213,19 @@ export class BootSequence {
     return { done: false };
   }
 
+  /** 跳过的淡出进度 0–1；未跳过恒为 0 */
+  private skipFade(): number {
+    if (this.skipStartedAt < 0) return 0;
+    return Math.min(1, (performance.now() - this.skipStartedAt) / SKIP_FADE_MS);
+  }
+
   /** 跳过：短促淡出后移除，与自然播完的收尾一致 */
   skip() {
-    if (this.removed) return;
+    if (this.removed || this.skipStartedAt >= 0) return;
+    this.skipStartedAt = performance.now();
     this.root.dataset.skipped = "true";
-    this.skipTimer = window.setTimeout(() => this.dispose(), 280);
+    // 淡出由 update() 逐帧写入；这里只负责到时移除，多留 1 帧给最后一次写入落地
+    this.skipTimer = window.setTimeout(() => this.dispose(), SKIP_FADE_MS + 40);
   }
 
   get isRemoved() {

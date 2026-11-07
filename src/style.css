@@ -501,13 +501,17 @@ body {
   inset: 0;
   z-index: 40;
   background: var(--paper);
-  transition: opacity 600ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* 这里**不能**声明 transition: opacity。
+     boot.ts 每帧把 opacity 直接写进内联样式，CSS 过渡会和逐帧写值叠加：
+     每帧都是一个新的过渡起点，渲染值永远追不上目标值。
+     实测 headless 7 fps 下整段 fadeOut 被吃掉（19 帧里 inline 恒为 "1"），
+     真实 60 fps 下表现为收尾"拖一下才散"。淡出改由 JS 逐帧驱动。 */
 }
 
 .boot[data-skipped="true"] {
-  opacity: 0;
+  /* 只接管交互，不碰 opacity —— 内联样式优先级高于类选择器，
+     写 opacity: 0 会被每帧写入的 inline 值直接覆盖，跳过等于没有淡出。 */
   pointer-events: none;
-  transition: opacity 280ms ease-out;
 }
 
 .boot-paper {
